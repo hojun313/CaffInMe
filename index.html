@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CaffInMe - 내 몸속 카페인 트래커</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --main-brown: #4E342E;
+            --point-beige: #F5E6CC;
+            --accent-orange: #FB923C;
+            --warning-red: #B91C1C;
+            --bg-sand: #FAFAF9;
+            --text-deep-brown: #1C1917;
+        }
+
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background-color: var(--bg-sand);
+            color: var(--text-deep-brown);
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            margin: 0;
+        }
+
+        .top-panel {
+            display: flex;
+            flex: 1;
+            gap: 20px;
+            padding: 20px;
+        }
+
+        .panel {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            background-color: #FFFFFF;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            padding: 20px;
+        }
+
+        .controls-panel {
+            gap: 15px;
+        }
+
+        .graph-panel {
+            flex: 2;
+            margin: 0 20px 20px 20px;
+            background-color: #FFFFFF;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            padding: 20px;
+        }
+
+        #caffeine-status h1 {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--main-brown);
+        }
+
+        #caffeine-level {
+            font-size: 48px;
+            font-weight: 700;
+            color: var(--accent-orange);
+            margin: 0;
+        }
+        
+        #caffeine-status {
+            text-align: center;
+        }
+
+        button {
+            width: 80%;
+            padding: 15px 20px;
+            margin: 0;
+            font-size: 16px;
+            font-weight: 700;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease-in-out;
+            background-color: var(--point-beige);
+            color: var(--text-deep-brown);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="top-panel">
+        <div class="panel status-panel">
+            <div id="caffeine-status">
+                <h1>현재 체내 카페인</h1>
+                <p id="caffeine-level">-- mg</p>
+            </div>
+        </div>
+        <div class="panel controls-panel">
+            <button id="add-1shot">1샷 추가 (75mg)</button>
+            <button id="add-2shots">2샷 추가 (150mg)</button>
+            <button id="add-4shots">4샷 추가 (300mg)</button>
+        </div>
+    </div>
+    <div class="graph-panel">
+        <canvas id="caffeine-chart"></canvas>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const caffeineLevelEl = document.getElementById('caffeine-level');
+            const add1ShotBtn = document.getElementById('add-1shot');
+            const add2ShotsBtn = document.getElementById('add-2shots');
+            const add4ShotsBtn = document.getElementById('add-4shots');
+
+            const CAFFEINE_KEY = 'caffeineLevel';
+
+            // 현재 카페인 수치를 가져오는 함수
+            const getCurrentCaffeine = () => {
+                return parseFloat(localStorage.getItem(CAFFEINE_KEY) || 0);
+            };
+
+            // 카페인 수치를 저장하는 함수
+            const saveCaffeine = (level) => {
+                localStorage.setItem(CAFFEINE_KEY, level);
+            };
+
+            // 화면에 현재 카페인 수치를 업데이트하는 함수
+            const renderCaffeineLevel = () => {
+                const currentLevel = getCurrentCaffeine();
+                caffeineLevelEl.textContent = `${Math.round(currentLevel)} mg`;
+            };
+
+            // 카페인을 추가하는 함수
+            const addCaffeine = (amount) => {
+                let currentLevel = getCurrentCaffeine();
+                currentLevel += amount;
+                saveCaffeine(currentLevel);
+                renderCaffeineLevel();
+            };
+
+            // 버튼 이벤트 리스너 설정
+            add1ShotBtn.addEventListener('click', () => addCaffeine(75));
+            add2ShotsBtn.addEventListener('click', () => addCaffeine(150));
+            add4ShotsBtn.addEventListener('click', () => addCaffeine(300));
+
+            // 페이지 로드 시 초기 렌더링
+            renderCaffeineLevel();
+        });
+    </script>
+
+</body>
+</html>
