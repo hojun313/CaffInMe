@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CaffInMe - 내 몸속 카페인 트래커</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@1.4.0/dist/chartjs-plugin-annotation.min.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap" rel="stylesheet">
@@ -151,6 +152,7 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
+            Chart.register(window.ChartAnnotation);
             // --- DOM Elements ---
             const caffeineLevelEl = document.getElementById('caffeine-level');
             const add1ShotBtn = document.getElementById('add-1shot');
@@ -194,10 +196,13 @@
                 const now = Date.now();
                 const labels = [];
                 const dataPoints = [];
+                const timePoints = [];
 
-                // Generate time labels and data points from -12h to +12h
-                for (let i = -12; i <= 12; i += 0.5) { // 30-min intervals
+                const nowIndex = 24; // -12h to 0h is 24 * 0.5h steps
+
+                for (let i = -12; i <= 12; i += 0.5) {
                     const time = now + i * 60 * 60 * 1000;
+                    timePoints.push(time);
                     if (i === 0) {
                         labels.push('Now');
                     } else {
@@ -206,46 +211,67 @@
                     dataPoints.push(calculateCaffeineAtTime(log, time));
                 }
 
+                let crossingTime = null;
+                for (let i = nowIndex + 1; i < dataPoints.length; i++) {
+                    if (dataPoints[i-1] >= 50 && dataPoints[i] < 50) {
+                        const y1 = dataPoints[i-1];
+                        const y2 = dataPoints[i];
+                        const x1 = timePoints[i-1];
+                        const x2 = timePoints[i];
+                        crossingTime = x1 + (50 - y1) * (x2 - x1) / (y2 - y1);
+                        break;
+                    }
+                }
+
+                const newAnnotations = {};
+                if (crossingTime) {
+                    newAnnotations.crossingPoint = {
+                        type: 'point',
+                        xValue: crossingTime,
+                        yValue: 50,
+                        backgroundColor: '#B91C1C', // warning-red
+                        radius: 6,
+                        borderColor: 'white',
+                        borderWidth: 2,
+                    };
+                    newAnnotations.crossingLine = {
+                        type: 'line',
+                        xMin: crossingTime,
+                        xMax: crossingTime,
+                        yMin: 0,
+                        yMax: 50,
+                        borderColor: '#B91C1C',
+                        borderWidth: 2,
+                        borderDash: [6, 6],
+                    };
+                }
+
                 const chartData = {
                     labels: labels,
                     datasets: [{
                         label: '체내 카페인 농도 (mg)',
                         data: dataPoints,
-                        borderColor: '#FB923C', // accent-orange
+                        borderColor: '#FB923C',
                         fill: true,
-                        tension: 0.4, // for smooth curve
+                        tension: 0.4,
                         pointRadius: 0,
                         pointHitRadius: 10,
                         backgroundColor: function(context) {
-                            const chart = context.chart;
-                            const {ctx, chartArea} = chart;
-
-                            if (!chartArea) {
-                                return null;
-                            }
-                            
+                            const {ctx, chartArea, scales} = context.chart;
+                            if (!chartArea) return null;
                             const gradient = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
-                            const y = chart.scales.y;
-                            const y50 = y.getPixelForValue(50);
-                            
+                            const y50 = scales.y.getPixelForValue(50);
                             const stop = Math.max(0, Math.min(1, (y50 - chartArea.top) / chartArea.height));
-
-                            const highCaffeineColor = 'rgba(251, 146, 60, 0.2)'; // accent-orange transparent
-                            const lowCaffeineColor = 'rgba(72, 187, 120, 0.2)'; // A calm green color
-
-                            if (y.max <= 50) {
-                                 gradient.addColorStop(0, lowCaffeineColor);
-                                 gradient.addColorStop(1, lowCaffeineColor);
-                            } else if (y.min >= 50) {
-                                 gradient.addColorStop(0, highCaffeineColor);
-                                 gradient.addColorStop(1, highCaffeineColor);
+                            const highColor = 'rgba(251, 146, 60, 0.2)';
+                            const lowColor = 'rgba(72, 187, 120, 0.2)';
+                            if (scales.y.max <= 50) {
+                                 gradient.addColorStop(0, lowColor); gradient.addColorStop(1, lowColor);
+                            } else if (scales.y.min >= 50) {
+                                 gradient.addColorStop(0, highColor); gradient.addColorStop(1, highColor);
                             } else {
-                                gradient.addColorStop(0, highCaffeineColor);
-                                gradient.addColorStop(stop, highCaffeineColor);
-                                gradient.addColorStop(stop, lowCaffeineColor);
-                                gradient.addColorStop(1, lowCaffeineColor);
+                                gradient.addColorStop(0, highColor); gradient.addColorStop(stop, highColor);
+                                gradient.addColorStop(stop, lowColor); gradient.addColorStop(1, lowColor);
                             }
-
                             return gradient;
                         },
                     }]
@@ -253,6 +279,7 @@
 
                 if (caffeineChart) {
                     caffeineChart.data = chartData;
+                    caffeineChart.options.plugins.annotation.annotations = newAnnotations;
                     caffeineChart.update();
                 } else {
                     const ctx = chartCanvas.getContext('2d');
@@ -262,36 +289,19 @@
                         options: {
                             responsive: true,
                             maintainAspectRatio: false,
-                            scales: {
-                                y: {
-                                    beginAtZero: true,
-                                    ticks: { color: '#1C1917' },
-                                    grid: { color: 'rgba(0,0,0,0.05)' }
-                                },
-                                x: {
-                                    ticks: { color: '#1C1917' },
-                                    grid: { display: false }
-                                }
-                            },
-                            plugins: {
-                                legend: { display: false }
-                            }
+                            scales: { y: { beginAtZero: true, ticks: { color: '#1C1917' }, grid: { color: 'rgba(0,0,0,0.05)' } },
+                                      x: { ticks: { color: '#1C1917' }, grid: { display: false } } },
+                            plugins: { legend: { display: false }, annotation: { annotations: newAnnotations } }
                         }
                     });
                 }
             };
 
-            // --- Main Update Function ---
-            const updateAll = () => {
-                updateCaffeineDisplay();
-                renderChart();
-            };
+            const updateAll = () => { updateCaffeineDisplay(); renderChart(); };
 
-            // --- Event Handling ---
             const addCaffeine = (amount) => {
                 const log = getLog();
                 log.push({ timestamp: Date.now(), amount: amount });
-                // Keep log clean: remove entries older than 24 hours
                 const twentyFourHoursAgo = Date.now() - 24 * 60 * 60 * 1000;
                 const cleanedLog = log.filter(entry => entry.timestamp > twentyFourHoursAgo);
                 saveLog(cleanedLog);
@@ -302,9 +312,8 @@
             add2ShotsBtn.addEventListener('click', () => addCaffeine(150));
             add4ShotsBtn.addEventListener('click', () => addCaffeine(300));
 
-            // --- Initialization & Interval ---
             updateAll();
-            setInterval(updateAll, 60000); // Update every minute
+            setInterval(updateAll, 60000);
         });
     </script>
 
