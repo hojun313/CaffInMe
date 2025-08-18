@@ -212,11 +212,42 @@
                         label: '체내 카페인 농도 (mg)',
                         data: dataPoints,
                         borderColor: '#FB923C', // accent-orange
-                        backgroundColor: 'rgba(251, 146, 60, 0.2)',
                         fill: true,
                         tension: 0.4, // for smooth curve
                         pointRadius: 0,
                         pointHitRadius: 10,
+                        backgroundColor: function(context) {
+                            const chart = context.chart;
+                            const {ctx, chartArea} = chart;
+
+                            if (!chartArea) {
+                                return null;
+                            }
+                            
+                            const gradient = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+                            const y = chart.scales.y;
+                            const y50 = y.getPixelForValue(50);
+                            
+                            const stop = Math.max(0, Math.min(1, (y50 - chartArea.top) / chartArea.height));
+
+                            const highCaffeineColor = 'rgba(251, 146, 60, 0.2)'; // accent-orange transparent
+                            const lowCaffeineColor = 'rgba(72, 187, 120, 0.2)'; // A calm green color
+
+                            if (y.max <= 50) {
+                                 gradient.addColorStop(0, lowCaffeineColor);
+                                 gradient.addColorStop(1, lowCaffeineColor);
+                            } else if (y.min >= 50) {
+                                 gradient.addColorStop(0, highCaffeineColor);
+                                 gradient.addColorStop(1, highCaffeineColor);
+                            } else {
+                                gradient.addColorStop(0, highCaffeineColor);
+                                gradient.addColorStop(stop, highCaffeineColor);
+                                gradient.addColorStop(stop, lowCaffeineColor);
+                                gradient.addColorStop(1, lowCaffeineColor);
+                            }
+
+                            return gradient;
+                        },
                     }]
                 };
 
