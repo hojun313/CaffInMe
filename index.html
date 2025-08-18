@@ -28,6 +28,17 @@
             margin: 0;
         }
 
+        .container {
+            padding: 20px;
+            text-align: center;
+        }
+
+        .container h1 {
+            margin: 0;
+            font-size: 42px;
+            color: var(--main-brown);
+        }
+
         .top-panel {
             display: flex;
             flex: 1;
@@ -118,7 +129,9 @@
     </style>
 </head>
 <body>
-
+    <div class="container">
+        <h1>CaffInMe - 내 몸속 카페인 트래커</h1>
+    </div>
     <div class="top-panel">
         <div class="panel status-panel">
             <div id="caffeine-status">
@@ -144,29 +157,50 @@
             const add4ShotsBtn = document.getElementById('add-4shots');
 
             const CAFFEINE_KEY = 'caffeineLevel';
+            const TIMESTAMP_KEY = 'lastUpdatedTimestamp';
+            const HALF_LIFE_MS = 5 * 60 * 60 * 1000; // 5 hours in milliseconds
 
-            // 현재 카페인 수치를 가져오는 함수
-            const getCurrentCaffeine = () => {
-                return parseFloat(localStorage.getItem(CAFFEINE_KEY) || 0);
+            // 현재 상태(값과 시간)를 가져오는 함수
+            const getState = () => {
+                return {
+                    level: parseFloat(localStorage.getItem(CAFFEINE_KEY) || 0),
+                    timestamp: parseFloat(localStorage.getItem(TIMESTAMP_KEY) || Date.now())
+                };
             };
 
-            // 카페인 수치를 저장하는 함수
-            const saveCaffeine = (level) => {
+            // 현재 상태를 저장하는 함수
+            const saveState = (level, timestamp) => {
                 localStorage.setItem(CAFFEINE_KEY, level);
+                localStorage.setItem(TIMESTAMP_KEY, timestamp);
             };
 
-            // 화면에 현재 카페인 수치를 업데이트하는 함수
-            const renderCaffeineLevel = () => {
-                const currentLevel = getCurrentCaffeine();
+            // 경과 시간을 반영하여 현재 카페인 수치를 계산하고, 화면에 업데이트하며, 계산된 값을 저장하는 메인 함수
+            const updateCaffeineDisplay = () => {
+                const { level: lastLevel, timestamp: lastTimestamp } = getState();
+
+                if (lastLevel <= 0) {
+                    caffeineLevelEl.textContent = '0 mg';
+                    return;
+                }
+
+                const timeElapsed = Date.now() - lastTimestamp;
+                let currentLevel = lastLevel * Math.pow(0.5, timeElapsed / HALF_LIFE_MS);
+
+                // 카페인 수치가 1 미만이면 0으로 처리
+                if (currentLevel < 1) {
+                    currentLevel = 0;
+                }
+
+                saveState(currentLevel, Date.now()); // 계산된 현재 값과 시간으로 업데이트
                 caffeineLevelEl.textContent = `${Math.round(currentLevel)} mg`;
             };
 
             // 카페인을 추가하는 함수
             const addCaffeine = (amount) => {
-                let currentLevel = getCurrentCaffeine();
-                currentLevel += amount;
-                saveCaffeine(currentLevel);
-                renderCaffeineLevel();
+                let { level: currentLevel } = getState();
+                const newLevel = currentLevel + amount;
+                saveState(newLevel, Date.now());
+                caffeineLevelEl.textContent = `${Math.round(newLevel)} mg`;
             };
 
             // 버튼 이벤트 리스너 설정
@@ -174,8 +208,9 @@
             add2ShotsBtn.addEventListener('click', () => addCaffeine(150));
             add4ShotsBtn.addEventListener('click', () => addCaffeine(300));
 
-            // 페이지 로드 시 초기 렌더링
-            renderCaffeineLevel();
+            // --- 초기화 및 주기적 업데이트 ---
+            updateCaffeineDisplay(); // 페이지 로드 시 즉시 현재 수치로 업데이트
+            setInterval(updateCaffeineDisplay, 60000); // 1분마다 주기적으로 업데이트
         });
     </script>
 
