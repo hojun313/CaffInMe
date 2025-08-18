@@ -151,66 +151,129 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
+            // --- DOM Elements ---
             const caffeineLevelEl = document.getElementById('caffeine-level');
             const add1ShotBtn = document.getElementById('add-1shot');
             const add2ShotsBtn = document.getElementById('add-2shots');
             const add4ShotsBtn = document.getElementById('add-4shots');
+            const chartCanvas = document.getElementById('caffeine-chart');
 
-            const CAFFEINE_KEY = 'caffeineLevel';
-            const TIMESTAMP_KEY = 'lastUpdatedTimestamp';
+            // --- Constants ---
+            const LOG_KEY = 'caffeineLog';
             const HALF_LIFE_MS = 5 * 60 * 60 * 1000; // 5 hours in milliseconds
 
-            // 현재 상태(값과 시간)를 가져오는 함수
-            const getState = () => {
-                return {
-                    level: parseFloat(localStorage.getItem(CAFFEINE_KEY) || 0),
-                    timestamp: parseFloat(localStorage.getItem(TIMESTAMP_KEY) || Date.now())
-                };
+            // --- Chart Instance ---
+            let caffeineChart = null;
+
+            // --- Data Layer ---
+            const getLog = () => JSON.parse(localStorage.getItem(LOG_KEY) || '[]');
+            const saveLog = (log) => localStorage.setItem(LOG_KEY, JSON.stringify(log));
+
+            // --- Business Logic ---
+            const calculateCaffeineAtTime = (log, time) => {
+                let totalCaffeine = 0;
+                log.forEach(entry => {
+                    const timeElapsed = time - entry.timestamp;
+                    if (timeElapsed >= 0) {
+                        const remaining = entry.amount * Math.pow(0.5, timeElapsed / HALF_LIFE_MS);
+                        totalCaffeine += remaining;
+                    }
+                });
+                return totalCaffeine;
             };
 
-            // 현재 상태를 저장하는 함수
-            const saveState = (level, timestamp) => {
-                localStorage.setItem(CAFFEINE_KEY, level);
-                localStorage.setItem(TIMESTAMP_KEY, timestamp);
-            };
-
-            // 경과 시간을 반영하여 현재 카페인 수치를 계산하고, 화면에 업데이트하며, 계산된 값을 저장하는 메인 함수
+            // --- Presentation Layer ---
             const updateCaffeineDisplay = () => {
-                const { level: lastLevel, timestamp: lastTimestamp } = getState();
-
-                if (lastLevel <= 0) {
-                    caffeineLevelEl.textContent = '0 mg';
-                    return;
-                }
-
-                const timeElapsed = Date.now() - lastTimestamp;
-                let currentLevel = lastLevel * Math.pow(0.5, timeElapsed / HALF_LIFE_MS);
-
-                // 카페인 수치가 1 미만이면 0으로 처리
-                if (currentLevel < 1) {
-                    currentLevel = 0;
-                }
-
-                saveState(currentLevel, Date.now()); // 계산된 현재 값과 시간으로 업데이트
+                const log = getLog();
+                const currentLevel = calculateCaffeineAtTime(log, Date.now());
                 caffeineLevelEl.textContent = `${Math.round(currentLevel)} mg`;
             };
 
-            // 카페인을 추가하는 함수
-            const addCaffeine = (amount) => {
-                let { level: currentLevel } = getState();
-                const newLevel = currentLevel + amount;
-                saveState(newLevel, Date.now());
-                caffeineLevelEl.textContent = `${Math.round(newLevel)} mg`;
+            const renderChart = () => {
+                const log = getLog();
+                const now = Date.now();
+                const labels = [];
+                const dataPoints = [];
+
+                // Generate time labels and data points from -12h to +12h
+                for (let i = -12; i <= 12; i += 0.5) { // 30-min intervals
+                    const time = now + i * 60 * 60 * 1000;
+                    if (i === 0) {
+                        labels.push('Now');
+                    } else {
+                        labels.push(`${i > 0 ? '+' : ''}${i}h`);
+                    }
+                    dataPoints.push(calculateCaffeineAtTime(log, time));
+                }
+
+                const chartData = {
+                    labels: labels,
+                    datasets: [{
+                        label: '체내 카페인 농도 (mg)',
+                        data: dataPoints,
+                        borderColor: '#FB923C', // accent-orange
+                        backgroundColor: 'rgba(251, 146, 60, 0.2)',
+                        fill: true,
+                        tension: 0.4, // for smooth curve
+                        pointRadius: 0,
+                        pointHitRadius: 10,
+                    }]
+                };
+
+                if (caffeineChart) {
+                    caffeineChart.data = chartData;
+                    caffeineChart.update();
+                } else {
+                    const ctx = chartCanvas.getContext('2d');
+                    caffeineChart = new Chart(ctx, {
+                        type: 'line',
+                        data: chartData,
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    ticks: { color: '#1C1917' },
+                                    grid: { color: 'rgba(0,0,0,0.05)' }
+                                },
+                                x: {
+                                    ticks: { color: '#1C1917' },
+                                    grid: { display: false }
+                                }
+                            },
+                            plugins: {
+                                legend: { display: false }
+                            }
+                        }
+                    });
+                }
             };
 
-            // 버튼 이벤트 리스너 설정
+            // --- Main Update Function ---
+            const updateAll = () => {
+                updateCaffeineDisplay();
+                renderChart();
+            };
+
+            // --- Event Handling ---
+            const addCaffeine = (amount) => {
+                const log = getLog();
+                log.push({ timestamp: Date.now(), amount: amount });
+                // Keep log clean: remove entries older than 24 hours
+                const twentyFourHoursAgo = Date.now() - 24 * 60 * 60 * 1000;
+                const cleanedLog = log.filter(entry => entry.timestamp > twentyFourHoursAgo);
+                saveLog(cleanedLog);
+                updateAll();
+            };
+
             add1ShotBtn.addEventListener('click', () => addCaffeine(75));
             add2ShotsBtn.addEventListener('click', () => addCaffeine(150));
             add4ShotsBtn.addEventListener('click', () => addCaffeine(300));
 
-            // --- 초기화 및 주기적 업데이트 ---
-            updateCaffeineDisplay(); // 페이지 로드 시 즉시 현재 수치로 업데이트
-            setInterval(updateCaffeineDisplay, 60000); // 1분마다 주기적으로 업데이트
+            // --- Initialization & Interval ---
+            updateAll();
+            setInterval(updateAll, 60000); // Update every minute
         });
     </script>
 
