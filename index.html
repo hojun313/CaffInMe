@@ -299,8 +299,8 @@
                     const li = document.createElement('li');
                     li.innerHTML = `
                         <div>
-                            <span class="amount">${entry.amount} mg</span>
                             <span class="time">${formatTimestamp(entry.timestamp)}</span>
+                            <span class="amount">${entry.amount} mg</span>
                         </div>
                         <button class="delete-log-btn" data-timestamp="${entry.timestamp}">&times;</button>
                     `;
