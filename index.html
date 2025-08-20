@@ -41,7 +41,9 @@
         .graph-panel { flex: 2; margin: 0 20px 20px 20px; background-color: #FFFFFF; border-radius: 12px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05); padding: 20px; }
         #caffeine-status h1 { font-size: 24px; font-weight: 700; color: var(--main-brown); }
         #caffeine-level { font-size: 48px; font-weight: 700; color: var(--accent-orange); margin: 0; }
-        #caffeine-status { text-align: center; }
+        #caffeine-status { text-align: center; margin-bottom: 15px; }
+        #history-btn { width: 100%; padding: 8px 12px; font-size: 14px; font-weight: 700; border: 1px solid var(--point-beige); border-radius: 8px; cursor: pointer; transition: all 0.2s ease-in-out; background-color: #fff; color: var(--text-deep-brown); }
+        #history-btn:hover { background-color: var(--point-beige); }
         .controls-panel button { width: 100%; height: 100%; padding: 15px 20px; margin: 0; font-size: 16px; font-weight: 700; border: none; border-radius: 8px; cursor: pointer; transition: all 0.2s ease-in-out; background-color: var(--point-beige); color: var(--text-deep-brown); box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
         .controls-panel button:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.15); }
         #reset-btn { position: absolute; bottom: 15px; right: 15px; width: 32px; height: 32px; padding: 0; background-color: transparent; border: none; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background-color 0.2s ease; }
@@ -59,9 +61,17 @@
         .close-btn { color: #aaa; position: absolute; top: 10px; right: 20px; font-size: 28px; font-weight: bold; }
         .close-btn:hover, .close-btn:focus { color: black; text-decoration: none; cursor: pointer; }
         #past-entry-modal .modal-controls { display: flex; gap: 10px; margin-bottom: 15px; }
-        #past-entry-modal .modal-controls button { flex: 1; padding: 10px; font-size: 14px; }
+        #past-entry-modal .modal-controls button { flex: 1; padding: 10px; font-size: 14px; border: 2px solid transparent; }
         #past-entry-modal input[type="datetime-local"] { width: 100%; padding: 8px; margin-bottom: 20px; border: 1px solid #ccc; border-radius: 4px; }
         #past-entry-modal .save-btn { background-color: var(--accent-orange); color: white; width: 100%; padding: 12px; font-size: 16px; border: none; border-radius: 8px; cursor: pointer; }
+        
+        #history-modal .history-list { list-style: none; padding: 0; margin-top: 20px; max-height: 300px; overflow-y: auto; }
+        #history-modal .history-list li { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #eee; }
+        #history-modal .history-list li:last-child { border-bottom: none; }
+        #history-modal .history-list .amount { font-weight: bold; color: var(--accent-orange); }
+        #history-modal .history-list .time { font-size: 14px; color: #555; }
+        #history-modal .history-list .delete-log-btn { background: #ff4d4d; color: white; border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; font-weight: bold; line-height: 24px; text-align: center; }
+        #history-modal .empty-history { text-align: center; color: #888; padding: 20px; }
     </style>
 </head>
 <body>
@@ -84,7 +94,11 @@
         </div>
         <div class="top-panel">
             <div class="panel status-panel">
-                <div id="caffeine-status"><h1>현재 체내 카페인</h1><p id="caffeine-level">-- mg</p></div>
+                <div id="caffeine-status">
+                    <h1>현재 체내 카페인</h1>
+                    <p id="caffeine-level">-- mg</p>
+                </div>
+                <button id="history-btn">섭취 기록 보기</button>
                 <button id="reset-btn" title="초기화"><svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 0 24 24" width="20px"><path d="M0 0h24v24H0V0z" fill="none"/><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg></button>
             </div>
             <div class="panel controls-panel">
@@ -124,6 +138,14 @@
         </div>
     </div>
 
+    <div id="history-modal" class="modal hidden">
+        <div class="modal-content">
+            <span class="close-btn" id="close-history-btn">&times;</span>
+            <h2>카페인 섭취 기록</h2>
+            <ul id="history-list" class="history-list"></ul>
+        </div>
+    </div>
+
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             // --- DOM Elements ---
@@ -138,13 +160,20 @@
             const chartCanvas = document.getElementById('caffeine-chart');
             const resetBtn = document.getElementById('reset-btn');
             const helpBtn = document.getElementById('help-btn');
+            const historyBtn = document.getElementById('history-btn');
+
             const helpModal = document.getElementById('help-modal');
             const closeHelpBtn = document.getElementById('close-help-btn');
+            
             const pastEntryModal = document.getElementById('past-entry-modal');
             const closePastEntryBtn = document.getElementById('close-past-entry-btn');
             const pastTimeInput = document.getElementById('past-time-input');
             const savePastEntryBtn = document.getElementById('save-past-entry-btn');
             const pastEntryAmountBtns = pastEntryModal.querySelector('.modal-controls');
+
+            const historyModal = document.getElementById('history-modal');
+            const closeHistoryBtn = document.getElementById('close-history-btn');
+            const historyListEl = document.getElementById('history-list');
 
             // --- Constants ---
             const LOG_KEY = 'caffeineLog';
@@ -171,6 +200,20 @@
                     }
                 });
                 return totalCaffeine;
+            };
+
+            const formatTimestamp = (timestamp) => {
+                const date = new Date(timestamp);
+                const now = new Date();
+                const isToday = date.toDateString() === now.toDateString();
+                const isYesterday = new Date(now.setDate(now.getDate() - 1)).toDateString() === date.toDateString();
+
+                const timeString = date.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: true });
+
+                if (isToday) return `오늘 ${timeString}`;
+                if (isYesterday) return `어제 ${timeString}`;
+                
+                return `${date.toLocaleDateString('ko-KR')} ${timeString}`;
             };
 
             // --- Presentation Layer ---
@@ -243,6 +286,28 @@
                 }
             };
 
+            const renderHistoryList = () => {
+                const log = getLog();
+                historyListEl.innerHTML = ''; // Clear previous list
+
+                if (log.length === 0) {
+                    historyListEl.innerHTML = '<li class="empty-history">섭취 기록이 없습니다.</li>';
+                    return;
+                }
+
+                log.slice().reverse().forEach(entry => {
+                    const li = document.createElement('li');
+                    li.innerHTML = `
+                        <div>
+                            <span class="amount">${entry.amount} mg</span>
+                            <span class="time">${formatTimestamp(entry.timestamp)}</span>
+                        </div>
+                        <button class="delete-log-btn" data-timestamp="${entry.timestamp}">&times;</button>
+                    `;
+                    historyListEl.appendChild(li);
+                });
+            };
+
             // --- App Logic ---
             const updateAll = () => { updateCaffeineDisplay(); renderChart(); };
 
@@ -275,6 +340,7 @@
                 }
             });
 
+            // --- Modal Event Listeners ---
             helpBtn.addEventListener('click', () => helpModal.classList.remove('hidden'));
             closeHelpBtn.addEventListener('click', () => helpModal.classList.add('hidden'));
             helpModal.addEventListener('click', (e) => {
@@ -285,14 +351,13 @@
                 pastEntryModal.classList.remove('hidden');
                 pastTimeInput.value = new Date(Date.now() - 3600 * 1000).toISOString().slice(0, 16);
                 selectedPastAmount = 0;
-                 // Reset selection
                 [...pastEntryAmountBtns.children].forEach(btn => btn.style.border = '2px solid transparent');
             });
             closePastEntryBtn.addEventListener('click', () => pastEntryModal.classList.add('hidden'));
             pastEntryModal.addEventListener('click', (e) => {
                 if (e.target === pastEntryModal) { pastEntryModal.classList.add('hidden'); }
             });
-
+            
             pastEntryAmountBtns.addEventListener('click', (e) => {
                 if (e.target.tagName === 'BUTTON') {
                     selectedPastAmount = parseFloat(e.target.dataset.amount);
@@ -318,6 +383,28 @@
                 }
                 addCaffeine(selectedPastAmount, timestamp);
                 pastEntryModal.classList.add('hidden');
+            });
+
+            historyBtn.addEventListener('click', () => {
+                renderHistoryList();
+                historyModal.classList.remove('hidden');
+            });
+            closeHistoryBtn.addEventListener('click', () => historyModal.classList.add('hidden'));
+            historyModal.addEventListener('click', (e) => {
+                if (e.target === historyModal) { historyModal.classList.add('hidden'); }
+            });
+
+            historyListEl.addEventListener('click', (e) => {
+                if (e.target.classList.contains('delete-log-btn')) {
+                    const timestamp = parseInt(e.target.dataset.timestamp, 10);
+                    if (confirm('이 기록을 삭제하시겠습니까?')) {
+                        let log = getLog();
+                        log = log.filter(entry => entry.timestamp !== timestamp);
+                        saveLog(log);
+                        updateAll();
+                        renderHistoryList(); // Re-render the list in the modal
+                    }
+                }
             });
 
             setupOptions.addEventListener('click', (e) => {
