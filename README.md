@@ -1,6 +1,6 @@
 # CaffInMe - 내 몸속 카페인 트래커
 
-![CaffInMe](https://user-images.githubusercontent.com/1234567/123456789-abcdef.png) <!-- 사용자가 직접 스크린샷을 추가할 수 있도록 플레이스홀더를 남겨둡니다. -->
+![CaffInMe](CaffInMe.png)
 
 내 몸 속 카페인을 추적하고 관리하는 간단한 웹 애플리케이션입니다. 매일 마시는 커피가 수면과 건강에 미치는 영향을 시각적으로 확인하고, 건강한 카페인 섭취 습관을 만들 수 있도록 돕습니다.
 
